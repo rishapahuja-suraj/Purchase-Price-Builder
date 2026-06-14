@@ -723,33 +723,48 @@ def build_excel(data):
 
 
 class handler(BaseHTTPRequestHandler):
-    def do_OPTIONS(self):
+
+    def do_GET(self):
+        """Health check — lets you verify the function is deployed."""
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin','*')
-        self.send_header('Access-Control-Allow-Methods','POST,OPTIONS')
-        self.send_header('Access-Control-Allow-Headers','Content-Type')
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps({'status': 'ok', 'function': 'export'}).encode())
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Content-Length', '0')
         self.end_headers()
 
     def do_POST(self):
         try:
-            length=int(self.headers.get('Content-Length',0))
-            body=self.rfile.read(length)
-            data=json.loads(body)
-            excel_bytes=build_excel(data)
-            co=data.get('company','Deal').replace(' ','_')
-            fname=f'{co}_Performance_Plan.xlsx'
+            length = int(self.headers.get('Content-Length') or 0)
+            body   = self.rfile.read(length) if length > 0 else b'{}'
+            data   = json.loads(body.decode('utf-8'))
+            excel_bytes = build_excel(data)
+            co   = str(data.get('company', 'Deal')).replace(' ', '_')
+            fname = f'{co}_Performance_Plan.xlsx'
             self.send_response(200)
-            self.send_header('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            self.send_header('Content-Disposition',f'attachment; filename="{fname}"')
-            self.send_header('Content-Length',str(len(excel_bytes)))
-            self.send_header('Access-Control-Allow-Origin','*')
+            self.send_header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
+            self.send_header('Content-Length', str(len(excel_bytes)))
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(excel_bytes)
         except Exception as e:
+            import traceback
+            err_detail = traceback.format_exc()
+            payload = json.dumps({'error': str(e), 'detail': err_detail}).encode()
             self.send_response(500)
-            self.send_header('Content-Type','application/json')
-            self.send_header('Access-Control-Allow-Origin','*')
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(payload)))
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            self.wfile.write(json.dumps({'error':str(e)}).encode())
+            self.wfile.write(payload)
 
-    def log_message(self,*args): pass
+    def log_message(self, *args):
+        pass
